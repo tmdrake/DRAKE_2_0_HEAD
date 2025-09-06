@@ -4,24 +4,28 @@ void eyesbrightness(float brightness) {
     EYE LED's are on: 0-3
     brightness values 0.0-1.1
     interrupt code
+    TODO 9-25; need to fix this so its fixed red.
     */
-  uint32_t lastcolors[5];
+  //uint32_t lastcolors[5];
   //spikes.setPixelColor(1, spikes.Color(150 * _brightness , 0, 255 * _brightness ));
   for (int i = 0; i < 4; i++) {
     //backup last color
-    lastcolors[i] = spikes.getPixelColor(i);
+    //lastcolors[i] = spikes.getPixelColor(i);
     //spikes.setPixelColor(i, spikes.Color(Red(spikes.getPixelColor(i) )* brightness, Green(spikes.getPixelColor(i) )* brightness, Blue(spikes.getPixelColor(i))* brightness));
-    spikes.setPixelColor(i, spikes.Color(150, 0, 0));
+    spikes.setPixelColor(i, spikes.Color(150 * brightness, 0, 0)); //Red eyes
     
   }  
-  spikes.show();
+
+  //spikes.show();
 
   //restore last color information
-for (int i = 0; i < 4; i++) {
+  /*
+  for (int i = 0; i < 4; i++) {
     spikes.setPixelColor(i, lastcolors[i]);
   }
-  //spikes.setBrightness(uint8_t)
+  //spikes.setBrightness(uint8_t)*/
 }
+
 
 // Return color, dimmed by 75% (used by scanner)
 // uint32_t DimColor(uint32_t color) {

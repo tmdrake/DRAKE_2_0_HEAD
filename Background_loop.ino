@@ -40,12 +40,14 @@ void set_brightness(byte __brightness) {
     spikes.setPixelColor(i, spikes.Color(150 * _brightness, 0, 255 * _brightness));
 
   /*Patching for the eyes*/
-  if (dim_eyes) {
+  if (dim_eyes) 
     eyesbrightness(0.1);  //10%
-  } else
-    spikes.show();
+  else
+    eyesbrightness(1);    //100%
+  
+  
   /*********************/
-  //spikes.show();
+  spikes.show();
 }
 
 void resetBrightnessandDirection() {
