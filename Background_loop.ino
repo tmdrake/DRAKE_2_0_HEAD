@@ -41,9 +41,9 @@ void set_brightness(byte __brightness) {
 
   /*Patching for the eyes*/
   if (dim_eyes) 
-    eyesbrightness(0.1);  //10%
+    eyesbrightness(0.1, true);  //10%
   else
-    eyesbrightness(1);    //100%
+    eyesbrightness(1, true);    //100%
   
   
   /*********************/

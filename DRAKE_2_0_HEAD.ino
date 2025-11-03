@@ -1,6 +1,6 @@
 /*
  * Runs on ESP-12E (Aka NodeMCU 1.0)
- * Board version 2.7.4
+ * Board version 3.1.2
  * Select NO-OTA/FS
  */
 #if !defined(ESP8266)
@@ -34,9 +34,9 @@ DallasTemperature sensors(&oneWire);
 // How many NeoPixels are attached to the Arduino?
 #define LED_COUNT 50
 Adafruit_NeoPixel spikes(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
-Adafruit_NeoPixel test(LED_COUNT, LED_PIN1, NEO_GRB + NEO_KHZ800);
+//LED[0-3 are eyes 4-50 are spikes disks]
+//Adafruit_NeoPixel test(LED_COUNT, LED_PIN1, NEO_GRB + NEO_KHZ800);
 /*******************************/
-/*TODO: Need to define the LED on the eyes*/
 
 // setup() function -- runs once at startup --------------------------------
 #include <ESP8266WiFi.h>
@@ -71,7 +71,7 @@ void setup() {
   pinMode(FAN_PIN, OUTPUT);
   digitalWrite(FAN_PIN, HIGH);  //Turn Fan on
 
-  test.begin();               // INITIALIZE NeoPixel spikes object (REQUIRED, Almost forgot)
+  //test.begin();               // INITIALIZE NeoPixel spikes object (REQUIRED, Almost forgot)
   spikes.begin();             // INITIALIZE NeoPixel spikes object (REQUIRED)
   spikes.show();              // Turn OFF all pixels ASAP
   spikes.setBrightness(100);  // Set BRIGHTNESS to about 1/5 (max = 255)
@@ -161,7 +161,7 @@ void sound_detect() {
         soundloop(millis(), 50, false, micLevel);  //false = color phase, true = distinct colors
     }
 
-
+    //TODO: Need to reimplment the mode selection
     //mode_selector(mode);
 
     //digitalWrite(LED_BUILTIN, HIGH);
@@ -212,7 +212,7 @@ void checkLight() {
   Serial.println(sensorValue);
   //Not needed with Background loop
 
-  if (sensorValue < 500) {  //Brightness on eye control TODO should be a varabile
+  if (sensorValue < 500) {  //Brightness on eye control. TODO: should be a varabile
     //spikes.setBrightness(200);
     dim_eyes = false;
   } else {
@@ -262,9 +262,9 @@ void turn_all_off() {
   for (uint16_t i = 0; i < spikes.numPixels(); i++)
     spikes.setPixelColor(i, spikes.Color(0, 0, 0));
   spikes.show();
-  for (uint16_t i = 0; i < test.numPixels(); i++)
-    test.setPixelColor(i, test.Color(0, 0, 0));
-  test.show();
+  // for (uint16_t i = 0; i < test.numPixels(); i++)
+  //   test.setPixelColor(i, test.Color(0, 0, 0));
+  // test.show();
 
 
   flashed = false;
@@ -276,7 +276,7 @@ void turn_all_on() {
     spikes.setPixelColor(i, spikes.Color(150, 150, 150));
   spikes.show();
 
-  for (uint16_t i = 0; i < test.numPixels(); i++)
-    test.setPixelColor(i, test.Color(150, 150, 150));
-  test.show();
+  // for (uint16_t i = 0; i < test.numPixels(); i++)
+  //   test.setPixelColor(i, test.Color(150, 150, 150));
+  // test.show();
 }

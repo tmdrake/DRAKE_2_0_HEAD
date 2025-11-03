@@ -67,17 +67,17 @@ if (Serial.available() > 0)
 //        break;
 //      }
 //
-//      case 'M':
-//      {
-//        Serial.print(F("Mode?"));
-//        int temp = Serial.parseInt();
-//        if (temp >= 0 && temp <= 10)
-//           mode = (byte)temp;
-//        Serial.println(mode); 
-//        if (EEPROM.read(1) != mode)
-//           EEPROM.write(1, mode);   
-//        break;
-//      }
+     case 'M':
+     {
+       Serial.print(F("Mode?"));
+       int temp = Serial.parseInt();
+       if (temp >= 0 && temp <= 1)
+          mode = (byte)temp;
+       Serial.println(mode);
+       if (EEPROM.read(1) != mode)
+          EEPROM.write(1, mode);
+       break;
+     }
             
       
       default:

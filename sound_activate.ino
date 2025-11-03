@@ -19,7 +19,7 @@ void soundloop(unsigned long millis, long refresh_ms, bool color, long micinput)
     }
 
     if (squareLevel / 1.0f > 0.5) {
-      spikes.setPixelColor(0, spikes.Color(0, 0, 0));  //reset 0 to all
+      spikes.setPixelColor(4, spikes.Color(0, 0, 0));  //reset 0 to all (4th is the spike)
     }
 
     //sets the first pixel in the stream
@@ -33,11 +33,16 @@ void soundloop(unsigned long millis, long refresh_ms, bool color, long micinput)
     if (!color) {
       fadeRgb();  //Makes the color more warmer (optional)
     }
+    
     /*Patching for the eyes*/
-    if (dim_eyes) {
-      eyesbrightness(0.1);  //10%
-    } else
-      spikes.show();
+
+    if (dim_eyes) 
+      eyesbrightness(0.1, true);  //10%     
+    else
+      eyesbrightness(1, true);  //100%     
+
+
+    spikes.show();
     /*********************/
 
     k++;
@@ -51,6 +56,9 @@ void soundloop(unsigned long millis, long refresh_ms, bool color, long micinput)
 
     k = 0;  //reset
   }
+
+
+
 }
 
 
@@ -135,7 +143,7 @@ void setRgb(float val) {
   //        rgb[0].g = (int)(val * cG * 255);
   //        rgb[0].b = (int)(val * cB * 255);
   //        back.setPixelColor(0, back.Color((int)(val * cR * 255), (int)(val * cG * 255), (int)(val * cB * 255)));
-  spikes.setPixelColor(0, (int)(val * cR * 255), (int)(val * cG * 255), (int)(val * cB * 255));
+  spikes.setPixelColor(4, (int)(val * cR * 255), (int)(val * cG * 255), (int)(val * cB * 255));
 }
 
 /*Sets the phase of the cR, cB, cG values & Phase*/

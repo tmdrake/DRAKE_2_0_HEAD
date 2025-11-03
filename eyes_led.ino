@@ -1,29 +1,33 @@
 
-void eyesbrightness(float brightness) {
+void eyesbrightness(float brightness, bool red) {
   /*
     EYE LED's are on: 0-3
     brightness values 0.0-1.1
     interrupt code
-    TODO 9-25; need to fix this so its fixed red.
     */
   //uint32_t lastcolors[5];
   //spikes.setPixelColor(1, spikes.Color(150 * _brightness , 0, 255 * _brightness ));
   for (int i = 0; i < 4; i++) {
     //backup last color
     //lastcolors[i] = spikes.getPixelColor(i);
-    //spikes.setPixelColor(i, spikes.Color(Red(spikes.getPixelColor(i) )* brightness, Green(spikes.getPixelColor(i) )* brightness, Blue(spikes.getPixelColor(i))* brightness));
-    spikes.setPixelColor(i, spikes.Color(150 * brightness, 0, 0)); //Red eyes
+    
+    if (red)
+      spikes.setPixelColor(i, spikes.Color(150 * brightness, 0, 0)); //Red eyes 
+    else
+      spikes.setPixelColor(i, spikes.Color(Red(spikes.getPixelColor(i) )* brightness, Green(spikes.getPixelColor(i) )* brightness, Blue(spikes.getPixelColor(i))* brightness));
     
   }  
 
-  //spikes.show();
+  
 
   //restore last color information
   /*
   for (int i = 0; i < 4; i++) {
     spikes.setPixelColor(i, lastcolors[i]);
-  }
-  //spikes.setBrightness(uint8_t)*/
+  }*/
+  //but do not show, use it for the loop
+  
+  //spikes.setBrightness(uint8_t)
 }
 
 
