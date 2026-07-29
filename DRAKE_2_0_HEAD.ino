@@ -1,7 +1,5 @@
 /*
- * Runs on ESP-12E (NodeMCU 1.0)
- * Modes 0-10 non-blocking (match Tail/PAWB)
- * CDS dims eyes 0-3; fan + ESP-NOW settings
+ * Head ESP8266 – modes 0-10, C color, CDS, fan, ESP-NOW
  */
 #if !defined(ESP8266)
 #error This code is designed to run on ESP8266 and ESP8266-based boards!
@@ -73,10 +71,7 @@ void setup() {
   spikes.setBrightness(100);
 
   Serial.begin(115200);
-  Serial.println(__FILE__);
-  Serial.println(__DATE__);
-  Serial.println(__TIME__);
-  Serial.println("Drake's HEAD...GO! (modes 0-10)");
+  Serial.println("Drake's HEAD...GO! (modes 0-10 + C)");
 
   pinMode(LIGHT_SENSOR, INPUT);
 
@@ -91,22 +86,14 @@ void setup() {
   WiFi.softAP(ssid, NULL, 2, true, 8);
   WiFi.setSleepMode(WIFI_NONE_SLEEP);
 
-  Serial.print("AP IP address: ");
-  Serial.println(WiFi.softAPIP());
-
   setupEspNow();
-
   Udp.begin(localPort);
   Udp_sound.begin(1237);
 }
 
 void loop() {
   t.update();
-
-  if (!flashed) {
-    sound_detect();
-  }
-
+  if (!flashed) sound_detect();
   checkSerial();
   checkUDP();
   checkUDP_sound();
@@ -139,6 +126,14 @@ void handleHeadCommand(const char *s) {
     if (mode > 10) mode = 10;
     resetHeadModeState();
     Serial.print("Mode:"); Serial.println(mode);
+  } else if (c0 == 'C') {
+    int r = 0, g = 0, b = 0;
+    if (sscanf(s + 1, "%d,%d,%d", &r, &g, &b) == 3) {
+      setSolidColor(constrain(r, 0, 255), constrain(g, 0, 255), constrain(b, 0, 255));
+      mode = 9;
+      resetHeadModeState();
+      Serial.println("Solid color set");
+    }
   } else if (c0 == 'F') {
     if (s[1] == 'T' || s[1] == 't') {
       float tf = atof(s + 2);
@@ -163,13 +158,10 @@ void handleHeadCommand(const char *s) {
 }
 
 void sound_detect() {
-  // Visual modes 2-10 run continuously (match Tail)
   if (mode >= 2 && mode <= 10) {
     mode_selector(mode);
     return;
   }
-
-  // Modes 0-1: sound-reactive when mic hot, else idle fade
   if (soundmode && enableSound) {
     mode_selector(mode);
     if (millis() - lastime > 10000) {
@@ -179,7 +171,6 @@ void sound_detect() {
   } else {
     fading();
   }
-
   if (micLevel > 100) {
     soundmode = true;
     lastime = millis();
@@ -204,7 +195,6 @@ void checkUDP_sound() {
 void checkLight() {
   sensorValue = analogRead(LIGHT_SENSOR);
   dim_eyes = (sensorValue >= cdsThreshold);
-
   espnowSendLight((uint16_t)constrain(sensorValue, 0, 65535));
   Udp.beginPacket(IPAddress(192, 168, 4, 10), 1235);
   Udp.print(sensorValue);
@@ -229,7 +219,7 @@ void flash_lamp() {
 
 void turn_all_off() {
   for (uint16_t i = 0; i < spikes.numPixels(); i++)
-    spikes.setPixelColor(i, spikes.Color(0, 0, 0));
+    spikes.setPixelColor(i, 0);
   spikes.show();
   flashed = false;
 }
