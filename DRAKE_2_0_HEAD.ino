@@ -1,12 +1,7 @@
 /*
- * Runs on ESP-12E (Aka NodeMCU 1.0)
- * Board version 3.1.2
- *
- * Head controls:
- *  - Fan: auto (by temp threshold), force ON, force OFF
- *  - CDS light sensor (A0): dims eye pixels (0-3) when reading >= threshold
- *
- * See Tail SYSTEM.md / APP_INTERFACE.md for full docs.
+ * Runs on ESP-12E (NodeMCU 1.0)
+ * Modes 0-10 non-blocking (match Tail/PAWB)
+ * CDS dims eyes 0-3; fan + ESP-NOW settings
  */
 #if !defined(ESP8266)
 #error This code is designed to run on ESP8266 and ESP8266-based boards!
@@ -18,11 +13,10 @@
 int sensorValue = 0;
 bool dim_eyes = false;
 
-// ---- App-tunable Head settings ----
-int fanMode = 2;              // 0=force OFF, 1=force ON, 2=AUTO by temperature
-float fanThresholdF = 85.0f;  // °F — fan ON when temp > this (AUTO mode)
-int cdsThreshold = 500;       // CDS reading >= this → dim eyes
-int eyeDimPercent = 10;       // eye brightness % when dimmed (1-100)
+int fanMode = 2;
+float fanThresholdF = 85.0f;
+int cdsThreshold = 500;
+int eyeDimPercent = 10;
 
 #include "Timer.h"
 Timer t;
@@ -62,14 +56,12 @@ unsigned long lastmiclevel = -1;
 float lastTempF = 0;
 
 void applyFanOutput() {
-  if (fanMode == 0) {
-    digitalWrite(FAN_PIN, LOW);   // force OFF
-  } else if (fanMode == 1) {
-    digitalWrite(FAN_PIN, HIGH);  // force ON
-  } else {
-    // AUTO
+  if (fanMode == 0)
+    digitalWrite(FAN_PIN, LOW);
+  else if (fanMode == 1)
+    digitalWrite(FAN_PIN, HIGH);
+  else
     digitalWrite(FAN_PIN, (lastTempF > fanThresholdF) ? HIGH : LOW);
-  }
 }
 
 void setup() {
@@ -84,7 +76,7 @@ void setup() {
   Serial.println(__FILE__);
   Serial.println(__DATE__);
   Serial.println(__TIME__);
-  Serial.println("Drake's HEAD...GO! (fan/CDS settings)");
+  Serial.println("Drake's HEAD...GO! (modes 0-10)");
 
   pinMode(LIGHT_SENSOR, INPUT);
 
@@ -130,62 +122,56 @@ void checkUDP() {
   }
 }
 
-/* Shared command parser (UDP ASCII or ESP-NOW CMD payload) */
 void handleHeadCommand(const char *s) {
   if (!s || !s[0]) return;
   char c0 = s[0];
 
   if (c0 == 'R') {
     resetfading();
+    resetHeadModeState();
   } else if (c0 == 'L') {
     flash_lamp();
   } else if (c0 == 'M') {
     if (s[1] >= '0' && s[1] <= '9') mode = s[1] - '0';
     else if (s[1] == 'A' || s[1] == 'a') mode = 10;
     else mode = atoi(s + 1);
+    if (mode < 0) mode = 0;
+    if (mode > 10) mode = 10;
+    resetHeadModeState();
     Serial.print("Mode:"); Serial.println(mode);
   } else if (c0 == 'F') {
-    // F0=off F1=on F2=auto  |  FT85 = threshold °F
     if (s[1] == 'T' || s[1] == 't') {
-      float t = atof(s + 2);
-      if (t >= 50 && t <= 120) {
-        fanThresholdF = t;
-        Serial.print("Fan threshold F="); Serial.println(fanThresholdF);
+      float tf = atof(s + 2);
+      if (tf >= 50 && tf <= 120) {
+        fanThresholdF = tf;
         applyFanOutput();
       }
     } else {
       int m = atoi(s + 1);
       if (m >= 0 && m <= 2) {
         fanMode = m;
-        Serial.print("Fan mode="); Serial.println(fanMode);
         applyFanOutput();
       }
     }
   } else if (c0 == 'I') {
-    // I<n> CDS / illumination threshold for eye dim
     int v = atoi(s + 1);
-    if (v >= 0 && v <= 1023) {
-      cdsThreshold = v;
-      Serial.print("CDS threshold="); Serial.println(cdsThreshold);
-    }
+    if (v >= 0 && v <= 1023) cdsThreshold = v;
   } else if (c0 == 'D') {
-    // D<n> eye dim percent 1-100 when CDS says dim
     int v = atoi(s + 1);
-    if (v >= 1 && v <= 100) {
-      eyeDimPercent = v;
-      Serial.print("Eye dim %="); Serial.println(eyeDimPercent);
-    }
+    if (v >= 1 && v <= 100) eyeDimPercent = v;
   }
 }
 
 void sound_detect() {
-  if (soundmode && enableSound) {
-    if (mode == 1) {
-      soundloop(millis(), 50, true, micLevel);
-    } else {
-      soundloop(millis(), 50, false, micLevel);
-    }
+  // Visual modes 2-10 run continuously (match Tail)
+  if (mode >= 2 && mode <= 10) {
+    mode_selector(mode);
+    return;
+  }
 
+  // Modes 0-1: sound-reactive when mic hot, else idle fade
+  if (soundmode && enableSound) {
+    mode_selector(mode);
     if (millis() - lastime > 10000) {
       soundmode = false;
       resetBrightnessandDirection();
@@ -215,45 +201,21 @@ void checkUDP_sound() {
   }
 }
 
-/*
- * CDS (photocell) on A0
- * --------------------
- * Hardware: light-dependent resistor voltage divider into Head A0.
- * Reading range roughly 0–1023 (ESP8266 ADC).
- *
- * Behaviour (eyes = NeoPixel indices 0–3):
- *   if sensorValue >= cdsThreshold  → dim_eyes = true
- *       eyes drawn at eyeDimPercent/100 brightness (default 10%)
- *   if sensorValue <  cdsThreshold  → dim_eyes = false
- *       eyes at full relative brightness (1.0)
- *
- * Default threshold 500 matches original firmware. Tunable via app command I<n>.
- * Applied inside soundloop via eyesbrightness() in eyes_led.ino / sound_activate.ino.
- */
 void checkLight() {
   sensorValue = analogRead(LIGHT_SENSOR);
-  Serial.print("CDS=");
-  Serial.println(sensorValue);
-
   dim_eyes = (sensorValue >= cdsThreshold);
 
   espnowSendLight((uint16_t)constrain(sensorValue, 0, 65535));
-
   Udp.beginPacket(IPAddress(192, 168, 4, 10), 1235);
   Udp.print(sensorValue);
   Udp.endPacket();
 }
 
 void checkSensor() {
-  Serial.print("Head temp=");
   lastTempF = sensors.getTempFByIndex(0) - 3;
-  Serial.println(lastTempF);
   sensors.requestTemperatures();
-
   applyFanOutput();
-
   espnowSendTemp(lastTempF);
-
   Udp.beginPacket(IPAddress(192, 168, 4, 10), 1236);
   Udp.print(lastTempF);
   Udp.endPacket();
