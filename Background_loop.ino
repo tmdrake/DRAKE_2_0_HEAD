@@ -1,3 +1,4 @@
+/* Idle purple fade — non-blocking (millis), CDS-aware eyes */
 int brightness;
 bool _direction;
 
@@ -7,30 +8,22 @@ void resetfading() {
 }
 
 void fading() {
-
   static unsigned long previousMillis;
 
-  if (millis() - previousMillis >= 50)  //time expired
-  {
+  if (millis() - previousMillis < 50) return;
+  previousMillis = millis();
 
+  if (_direction)
+    brightness--;
+  else
+    brightness++;
 
+  if (brightness >= 75)
+    _direction = true;
+  else if (brightness <= 0)
+    _direction = false;
 
-    if (_direction)
-      brightness--;
-    else
-      brightness++;
-
-    if (brightness >= 75)
-      _direction = true;
-    else if (brightness <= 0)
-      _direction = false;
-
-    set_brightness(brightness);
-    //Serial.println(brightness);
-
-
-    previousMillis = millis();
-  }
+  set_brightness(brightness);
 }
 
 void set_brightness(byte __brightness) {
@@ -39,14 +32,11 @@ void set_brightness(byte __brightness) {
   for (uint16_t i = 0; i < spikes.numPixels(); i++)
     spikes.setPixelColor(i, spikes.Color(150 * _brightness, 0, 255 * _brightness));
 
-  /*Patching for the eyes*/
-  if (dim_eyes) 
-    eyesbrightness(0.1, true);  //10%
+  if (dim_eyes)
+    eyesbrightness(eyeDimPercent / 100.0f, true);
   else
-    eyesbrightness(1, true);    //100%
-  
-  
-  /*********************/
+    eyesbrightness(1.0f, true);
+
   spikes.show();
 }
 
