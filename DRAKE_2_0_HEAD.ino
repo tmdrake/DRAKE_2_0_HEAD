@@ -4,8 +4,9 @@
  * Select NO-OTA/FS
  *
  * Updated July 2026:
- *   - Accepts binary 2-byte mic packets on port 1237 (plus ASCII fallback)
- *   - WiFi power-save disabled for lower latency
+ *   - Encrypted ESP-NOW for mic + commands + sensor feedback
+ *   - SoftAP channel 2 (shared with ESP-NOW)
+ *   - UDP kept as transitional fallback
  */
 #if !defined(ESP8266)
 #error This code is designed to run on ESP8266 and ESP8266-based boards! Please check your Tools->Board setting.
@@ -65,7 +66,7 @@ void setup() {
   Serial.println(__FILE__);
   Serial.println(__DATE__);
   Serial.println(__TIME__);
-  Serial.println("Drake's HEAD...GO! (binary mic ready)");
+  Serial.println("Drake's HEAD...GO! (ESP-NOW encrypted)");
 
   pinMode(LIGHT_SENSOR, INPUT);
 
@@ -75,14 +76,19 @@ void setup() {
   sensors.requestTemperatures();
   t.every(5000, checkSensor);
 
-  // SoftAP + low-latency WiFi
+  // SoftAP on channel 2 (ESP-NOW must share this channel)
+  WiFi.mode(WIFI_AP);
   WiFi.softAPConfig(local_IP, gateway, subnet);
   WiFi.softAP(ssid, NULL, 2, true, 8);
-  WiFi.setSleepMode(WIFI_NONE_SLEEP);   // Disable power-save
+  WiFi.setSleepMode(WIFI_NONE_SLEEP);
 
   IPAddress myIP = WiFi.softAPIP();
   Serial.print("AP IP address: ");
   Serial.println(myIP);
+
+  setupEspNow();
+
+  // UDP fallback still available during bench bring-up
   Udp.begin(localPort);
   Udp_sound.begin(1237);
 }
@@ -96,7 +102,7 @@ void loop() {
 
   checkSerial();
   checkUDP();
-  checkUDP_sound();
+  checkUDP_sound();  // fallback only
   wdt_reset();
 }
 
@@ -110,7 +116,7 @@ void checkUDP() {
     else if ((char)packetBuffer[0] == 'L')
       flash_lamp();
     else if ((char)packetBuffer[0] == 'M') {
-      Serial.print("Mode:");
+      Serial.print("UDP Mode:");
       mode = atoi(packetBuffer + 1);
       Serial.println(packetBuffer[1]);
     }
@@ -140,30 +146,21 @@ void sound_detect() {
 }
 
 void checkUDP_sound() {
-  /*
-   * Mic stream on port 1237
-   * Preferred: 2-byte big-endian int16 (binary)
-   * Fallback : ASCII number string (old clients)
-   */
+  // Transitional fallback if ESP-NOW peer not configured yet
   int packetSize = Udp_sound.parsePacket();
   if (!packetSize) return;
 
   int n = Udp_sound.read(packetBuffer, UDP_TX_PACKET_MAX_SIZE);
 
   if (n == 2) {
-    // Binary path
     int16_t level = ((uint8_t)packetBuffer[0] << 8) | (uint8_t)packetBuffer[1];
     if (level < 0) level = 0;
     micLevel = level;
   } else if (n > 0) {
-    // ASCII fallback
     packetBuffer[n] = 0;
     micLevel = atol(packetBuffer);
     if (micLevel < 0) micLevel = 0;
   }
-
-  // Optional debug (comment out for max performance)
-  // Serial.print("MIC:"); Serial.println(micLevel);
 }
 
 void checkLight() {
@@ -176,8 +173,11 @@ void checkLight() {
   else
     dim_eyes = true;
 
-  /* Send light value back to Tail on port 1235 */
-  Udp.beginPacket(IPAddress(192, 168, 4, 10), 1235);  // unicast to Tail
+  // Preferred: ESP-NOW
+  espnowSendLight((uint16_t)constrain(sensorValue, 0, 65535));
+
+  // Fallback UDP
+  Udp.beginPacket(IPAddress(192, 168, 4, 10), 1235);
   Udp.print(sensorValue);
   Udp.endPacket();
 }
@@ -193,7 +193,8 @@ void checkSensor() {
   else
     digitalWrite(FAN_PIN, LOW);
 
-  /* Send temperature back to Tail on port 1236 */
+  espnowSendTemp(temperature);
+
   Udp.beginPacket(IPAddress(192, 168, 4, 10), 1236);
   Udp.print(temperature);
   Udp.endPacket();

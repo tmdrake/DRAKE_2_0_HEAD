@@ -3,24 +3,21 @@
 ESP8266 (NodeMCU 1.0) firmware for the **dragonsuit head**.
 
 ## Role
-- SoftAP `TMDRAKE` @ `192.168.4.1` (hidden, channel 2)
-- Receives **commands** on UDP **1234** (`M`, `L`, `R`)
-- Receives **mic stream** on UDP **1237** (binary 2-byte int16 preferred; ASCII fallback)
-- Sends **light sensor** to Tail on UDP **1235**
-- Sends **temperature** to Tail on UDP **1236**
-- 50× NeoPixels (spikes + eyes), fan control, CDS dimming
+- SoftAP `TMDRAKE` @ `192.168.4.1`, **channel 2**, hidden
+- **Encrypted ESP-NOW** ↔ Tail (mic in, commands in, light/temp out)
+- UDP fallback still present for bench bring-up
+- 50× NeoPixels, fan, CDS, temperature sensor
 
-## Latency / WiFi
-- `WiFi.setSleepMode(WIFI_NONE_SLEEP)` — power-save off
-- Prefer binary mic packets from Tail (see Tail `sound_activate.ino`)
+## ESP-NOW bench setup
+1. Flash Head + Tail, open Serial 115200 on both.
+2. Copy each board’s MAC from the log.
+3. Set `TAIL_PEER_MAC` in `EspNowCom.ino` (this repo).
+4. Set `HEAD_PEER_MAC` in Tail `EspNowCom.ino`.
+5. Keys must match: `TMDrakePMK_2026!` / `TMDrakeLMK_2026!`
+6. Reflash both.
 
-## Full system docs
-Architecture, mode list, and protocol details live in the Tail repo:
-
+Full protocol docs:  
+**https://github.com/tmdrake/DRAKE_2_0_TAIL/blob/main/ESPNOW.md**  
 **https://github.com/tmdrake/DRAKE_2_0_TAIL/blob/main/SYSTEM.md**
-
-## Board
-- ESP-12E / NodeMCU 1.0
-- Core 3.1.2, NO-OTA / no FS as historically used
 
 http://tmdrake.com
