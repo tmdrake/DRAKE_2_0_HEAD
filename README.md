@@ -20,6 +20,11 @@ ESP8266 (NodeMCU) dragonsuit **head** firmware.
 Implementation: `New_Modes.ino` + `sound_activate.ino` — **no `delay()` on active path**.  
 Legacy blocking demos in `Other_modes.ino` are unused.
 
+## Repo contents
+
+Mostly `.ino` + text. Libraries or assets needed for the build/docs are fine.  
+See [REPO.md](https://github.com/tmdrake/DRAKE_2_0_TAIL/blob/main/REPO.md) (agent tools may not upload PNG/PDF — use local git).
+
 ## Firmware team docs (Tail repo)
 - [FIRMWARE_NOTES.md](https://github.com/tmdrake/DRAKE_2_0_TAIL/blob/main/FIRMWARE_NOTES.md)
 - [SYSTEM.md](https://github.com/tmdrake/DRAKE_2_0_TAIL/blob/main/SYSTEM.md)
