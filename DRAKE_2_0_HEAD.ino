@@ -53,9 +53,34 @@ unsigned long lastime = 0;
 unsigned long lastmiclevel = -1;
 float lastTempF = 0;
 
-// Valid DS18B20 range after offset; rejects disconnected / error codes
-bool tempReadingValid(float tF) {
-  return (tF > -40.0f && tF < 185.0f);
+// DS18B20 re-probe (begin() only searches once unless we call it again)
+static uint8_t tempFailStreak = 0;
+static unsigned long lastTempReprobeMs = 0;
+#define TEMP_FAILS_BEFORE_REPROBE  3          // ~15 s of bad reads @ 5 s interval
+#define TEMP_PERIODIC_REPROBE_MS   (5UL * 60UL * 1000UL)  // hot-plug recovery
+
+// Library “no device” / bus error (DallasTemperature DEVICE_DISCONNECTED_F ≈ -196.6)
+bool tempBusError(float rawF) {
+  return (rawF < -100.0f || rawF > 180.0f);  // allow real suit temps; drop open-bus codes
+}
+
+// Plausible head/suit air temp for fan auto only
+bool tempOkForFan(float tF) {
+  return (tF > 40.0f && tF < 140.0f);
+}
+
+/** Full 1-Wire search again — picks up reconnects without rebooting Head. */
+void reprobeTempBus(const char *reason) {
+  sensors.begin();
+  sensors.setWaitForConversion(false);
+  sensors.setResolution(12);
+  lastTempReprobeMs = millis();
+  tempFailStreak = 0;
+  Serial.print("DS18B20 re-probe (");
+  Serial.print(reason);
+  Serial.print("): devices=");
+  Serial.println(sensors.getDeviceCount());
+  sensors.requestTemperatures();
 }
 
 void applyFanOutput() {
@@ -64,9 +89,8 @@ void applyFanOutput() {
   } else if (fanMode == 1) {
     digitalWrite(FAN_PIN, HIGH);  // force on
   } else {
-    // Auto (default): only on with a plausible reading above threshold.
-    // Invalid / no sample yet → fan stays off (do not blast on boot).
-    bool on = tempReadingValid(lastTempF) && (lastTempF > fanThresholdF);
+    // Auto: only with a sane reading (not bus error, not room-cold bench noise as “hot”)
+    bool on = tempOkForFan(lastTempF) && (lastTempF > fanThresholdF);
     digitalWrite(FAN_PIN, on ? HIGH : LOW);
   }
 }
@@ -86,15 +110,17 @@ void setup() {
   pinMode(LIGHT_SENSOR, INPUT);
 
   t.every(1000, checkLight);
-  sensors.begin();
-  sensors.setWaitForConversion(false);
-  sensors.requestTemperatures();
+  // First bus search at boot (also see reprobeTempBus on errors / every 5 min)
+  reprobeTempBus("boot");
   t.every(5000, checkSensor);
 
   WiFi.mode(WIFI_AP);
   WiFi.softAPConfig(local_IP, gateway, subnet);
-  WiFi.softAP(ssid, NULL, 2, true, 8);
+  // channel 2, SSID visible (hidden SoftAP made Tail pairing flaky), max 8 STAs
+  WiFi.softAP(ssid, NULL, 2, false, 8);
   WiFi.setSleepMode(WIFI_NONE_SLEEP);
+  // Max SoftAP TX for suit range (dBm scale 0–20.5 on ESP8266)
+  WiFi.setOutputPower(20.5f);
 
   setupEspNow();
   Udp.begin(localPort);
@@ -114,7 +140,11 @@ void checkUDP() {
   int packetSize = Udp.parsePacket();
   if (packetSize) {
     int n = Udp.read(packetBuffer, UDP_TX_PACKET_MAX_SIZE);
+    if (n < 0) n = 0;
+    if (n > UDP_TX_PACKET_MAX_SIZE) n = UDP_TX_PACKET_MAX_SIZE;
     packetBuffer[n] = 0;
+    Serial.print("UDP CMD: ");
+    Serial.println(packetBuffer);
     handleHeadCommand(packetBuffer);
   }
 }
@@ -212,21 +242,46 @@ void checkLight() {
 }
 
 void checkSensor() {
-  float tF = sensors.getTempFByIndex(0) - 3.0f;
-  if (tempReadingValid(tF)) {
-    lastTempF = tF;
-  } else {
-    // Keep last good reading; log once in a while would be noisy — Serial only
-    Serial.println("Temp sensor: invalid reading (fan auto stays conservative)");
+  // Periodic re-search so a probe plugged in after boot is found without reboot
+  if (millis() - lastTempReprobeMs >= TEMP_PERIODIC_REPROBE_MS) {
+    reprobeTempBus("periodic");
+    applyFanOutput();
+    return;  // next cycle reads the conversion we just requested
   }
-  sensors.requestTemperatures();
-  applyFanOutput();
-  if (tempReadingValid(lastTempF)) {
+
+  // Read result of the *previous* requestTemperatures() (async)
+  float rawF = sensors.getTempFByIndex(0);
+  float tF = rawF - 3.0f;  // calibration offset (was always applied)
+
+  if (!tempBusError(rawF)) {
+    tempFailStreak = 0;
+    lastTempF = tF;
     espnowSendTemp(lastTempF);
     Udp.beginPacket(IPAddress(192, 168, 4, 10), 1236);
     Udp.print(lastTempF);
     Udp.endPacket();
+    sensors.requestTemperatures();
+  } else {
+    tempFailStreak++;
+    static unsigned long lastLog = 0;
+    if (millis() - lastLog > 15000) {
+      lastLog = millis();
+      Serial.print("Temp bus error rawF=");
+      Serial.print(rawF);
+      Serial.print(" devices=");
+      Serial.print(sensors.getDeviceCount());
+      Serial.print(" fails=");
+      Serial.println(tempFailStreak);
+    }
+    // After several bad reads, full bus search again (hot-unplug / reconnect)
+    if (tempFailStreak >= TEMP_FAILS_BEFORE_REPROBE) {
+      reprobeTempBus("after failures");
+    } else {
+      sensors.requestTemperatures();
+    }
   }
+
+  applyFanOutput();
 }
 
 void flash_lamp() {

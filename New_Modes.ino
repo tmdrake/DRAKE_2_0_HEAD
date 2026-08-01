@@ -1,5 +1,6 @@
 /*
  * New_Modes.ino – Head non-blocking modes 2-10 + setSolidColor
+ * Uses Tail EN_PHASE (syncPhase) when fresh so animations lock to the suit master clock.
  */
 static unsigned long headModePrev = 0;
 static uint16_t headStep = 0;
@@ -20,6 +21,23 @@ void applyEyeDim() {
   eyesbrightness(b, true);
 }
 
+/** Current phase: Tail master if packets are fresh, else free-run headStep. */
+static uint16_t animPhase(bool advanceLocal, uint16_t localInc) {
+  if (phaseSyncActive()) {
+    return syncPhase;
+  }
+  if (advanceLocal) headStep += localInc;
+  return headStep;
+}
+
+/** Triangle 20..255..20 — must match Tail breathFromPhase(). */
+static uint8_t breathFromPhase(uint16_t phase) {
+  uint16_t cycle = phase % 512;
+  if (cycle < 256)
+    return (uint8_t)map(cycle, 0, 255, 20, 255);
+  return (uint8_t)map(cycle, 256, 511, 255, 20);
+}
+
 void mode_vu() {
   if (millis() - headModePrev < 40) return;
   headModePrev = millis();
@@ -35,13 +53,13 @@ void mode_vu() {
 void mode_rainbow_chase() {
   if (millis() - headModePrev < 40) return;
   headModePrev = millis();
+  uint16_t step = animPhase(true, 256);
   for (int i = 0; i < spikes.numPixels(); i++) {
-    uint16_t h = headStep + (i * 65536L / spikes.numPixels());
+    uint16_t h = step + (i * 65536L / spikes.numPixels());
     spikes.setPixelColor(i, spikes.gamma32(spikes.ColorHSV(h)));
   }
   applyEyeDim();
   spikes.show();
-  headStep += 256;
 }
 
 void mode_comet() {
@@ -53,28 +71,25 @@ void mode_comet() {
   }
   int span = spikes.numPixels() - 4;
   if (span < 1) span = 1;
-  int head = 4 + (headStep % span);
+  uint16_t step = animPhase(true, 1);
+  int head = 4 + (step % span);
   spikes.setPixelColor(head, 255, 255, 255);
   if (head > 4) spikes.setPixelColor(head - 1, 180, 100, 255);
   if (head > 5) spikes.setPixelColor(head - 2, 80, 0, 150);
   applyEyeDim();
   spikes.show();
-  headStep++;
 }
 
 void mode_breathing() {
   if (millis() - headModePrev < 30) return;
   headModePrev = millis();
-  static int breath = 40;
-  static int dir = 1;
-  breath += dir * 3;
-  if (breath >= 255) { breath = 255; dir = -1; }
-  if (breath <= 20) { breath = 20; dir = 1; }
-  uint32_t color = spikes.gamma32(spikes.ColorHSV(headStep, 255, breath));
+  uint16_t step = animPhase(true, 4);
+  uint8_t breath = breathFromPhase(step);
+  uint16_t hue = (uint16_t)(step * 64);
+  uint32_t color = spikes.gamma32(spikes.ColorHSV(hue, 255, breath));
   for (int i = 0; i < spikes.numPixels(); i++) spikes.setPixelColor(i, color);
   applyEyeDim();
   spikes.show();
-  headStep += 20;
 }
 
 void mode_fire() {
@@ -111,15 +126,16 @@ void mode_sparkle() {
 void mode_wave() {
   if (millis() - headModePrev < 35) return;
   headModePrev = millis();
+  uint16_t step = animPhase(true, 1);
   for (int i = 0; i < spikes.numPixels(); i++) {
-    int phase = (headStep + i * 12) % 100;
-    int w = phase < 50 ? phase * 2 : (100 - phase) * 2;
-    uint8_t bri = map(w, 0, 100, 20, 220);
+    // Match Tail wave shape closely (sin-based); ESP8266 has sinf
+    float phase = (float)(step + i * 30) / 40.0f;
+    float wave = (sin(phase) + 1.0f) * 0.5f;
+    uint8_t bri = (uint8_t)(wave * 220.0f);
     spikes.setPixelColor(i, (bri * 150) / 255, 0, bri);
   }
   applyEyeDim();
   spikes.show();
-  headStep++;
 }
 
 void mode_solid() {
