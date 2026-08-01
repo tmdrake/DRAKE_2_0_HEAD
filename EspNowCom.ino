@@ -60,6 +60,7 @@ void onEspNowRecv(uint8_t *mac, uint8_t *data, uint8_t len) {
     uint8_t m = data[3];
     if (m <= 10 && m != (uint8_t)mode) {
       mode = m;
+      saveMode(mode);
       resetHeadModeState();
       Serial.print("ESP-NOW phase mode→");
       Serial.println(mode);

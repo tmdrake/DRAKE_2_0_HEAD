@@ -53,6 +53,27 @@ unsigned long lastime = 0;
 unsigned long lastmiclevel = -1;
 float lastTempF = 0;
 
+// Persist last mode across reboots (parity with Tail NVS / PAWB EEPROM)
+#define EEPROM_SIZE       32
+#define EEPROM_MODE_ADDR  0
+
+void saveMode(int m) {
+  if (m < 0) m = 0;
+  if (m > 10) m = 10;
+  if (EEPROM.read(EEPROM_MODE_ADDR) != (uint8_t)m) {
+    EEPROM.write(EEPROM_MODE_ADDR, (uint8_t)m);
+    EEPROM.commit();
+  }
+}
+
+void loadMode() {
+  int m = EEPROM.read(EEPROM_MODE_ADDR);
+  if (m < 0 || m > 10) m = 0;
+  mode = m;
+  Serial.print("Restored mode: ");
+  Serial.println(mode);
+}
+
 // DS18B20 re-probe (begin() only searches once unless we call it again)
 static uint8_t tempFailStreak = 0;
 static unsigned long lastTempReprobeMs = 0;
@@ -106,6 +127,9 @@ void setup() {
 
   Serial.begin(115200);
   Serial.println("Drake's HEAD...GO! (modes 0-10 + C)");
+
+  EEPROM.begin(EEPROM_SIZE);
+  loadMode();
 
   pinMode(LIGHT_SENSOR, INPUT);
 
@@ -164,6 +188,7 @@ void handleHeadCommand(const char *s) {
     else mode = atoi(s + 1);
     if (mode < 0) mode = 0;
     if (mode > 10) mode = 10;
+    saveMode(mode);
     resetHeadModeState();
     Serial.print("Mode:"); Serial.println(mode);
   } else if (c0 == 'C') {
@@ -171,6 +196,7 @@ void handleHeadCommand(const char *s) {
     if (sscanf(s + 1, "%d,%d,%d", &r, &g, &b) == 3) {
       setSolidColor(constrain(r, 0, 255), constrain(g, 0, 255), constrain(b, 0, 255));
       mode = 9;
+      saveMode(mode);
       resetHeadModeState();
       Serial.println("Solid color set");
     }

@@ -71,11 +71,11 @@ if (Serial.available() > 0)
      {
        Serial.print(F("Mode?"));
        int temp = Serial.parseInt();
-       if (temp >= 0 && temp <= 1)
-          mode = (byte)temp;
+       if (temp >= 0 && temp <= 10) {
+          mode = temp;
+          saveMode(mode);
+       }
        Serial.println(mode);
-       if (EEPROM.read(1) != mode)
-          EEPROM.write(1, mode);
        break;
      }
             

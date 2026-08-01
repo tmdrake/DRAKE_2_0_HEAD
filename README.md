@@ -5,6 +5,7 @@ ESP8266 (NodeMCU) dragonsuit **head** firmware.
 ## Features
 - SoftAP `TMDRAKE` **visible** channel 2 + **ESP-NOW** ↔ Tail
 - **Modes 0–10 non-blocking** (parity with Tail / PAWB)
+- **Last mode saved to EEPROM** on `M` / `C` / phase mode snap; restored at boot
 - CDS photocell dims **eye pixels 0–3** (`I` / `D` from app)
 - Fan auto / on / off + temperature threshold (`F*` / `FT*`)
   - Boot: fan **off** until a valid temp sample (auto only runs above threshold, default 85 °F)
