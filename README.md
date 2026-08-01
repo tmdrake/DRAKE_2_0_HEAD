@@ -7,6 +7,8 @@ ESP8266 (NodeMCU) dragonsuit **head** firmware.
 - **Modes 0–10 non-blocking** (parity with Tail / PAWB)
 - CDS photocell dims **eye pixels 0–3** (`I` / `D` from app)
 - Fan auto / on / off + temperature threshold (`F*` / `FT*`)
+  - Boot: fan **off** until a valid temp sample (auto only runs above threshold, default 85 °F)
+  - `F0` off · `F1` on · `F2` auto · `FT<n>` threshold °F
 
 ## Modes
 

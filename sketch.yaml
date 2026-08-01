@@ -1,0 +1,12 @@
+# Arduino CLI defaults for Drake Head (ESP8266 NodeMCU)
+#
+# Flash Size: 4MB (FS:none OTA:~1019KB)
+# ESP8266 can only map ~1 MB of instruction flash (irom0) — that is the
+# hardware max for a single sketch. FS:none frees FS area; app ceiling
+# stays ~1019 KB (same OTA slot size as other 4M maps with 1 MB OTA).
+default_fqbn: esp8266:esp8266:nodemcuv2:eesz=4M
+profiles:
+  nodemcu-max-app:
+    fqbn: esp8266:esp8266:nodemcuv2:eesz=4M
+    platforms:
+      - platform: esp8266:esp8266

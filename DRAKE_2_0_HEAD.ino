@@ -53,18 +53,28 @@ unsigned long lastime = 0;
 unsigned long lastmiclevel = -1;
 float lastTempF = 0;
 
+// Valid DS18B20 range after offset; rejects disconnected / error codes
+bool tempReadingValid(float tF) {
+  return (tF > -40.0f && tF < 185.0f);
+}
+
 void applyFanOutput() {
-  if (fanMode == 0)
-    digitalWrite(FAN_PIN, LOW);
-  else if (fanMode == 1)
-    digitalWrite(FAN_PIN, HIGH);
-  else
-    digitalWrite(FAN_PIN, (lastTempF > fanThresholdF) ? HIGH : LOW);
+  if (fanMode == 0) {
+    digitalWrite(FAN_PIN, LOW);   // force off
+  } else if (fanMode == 1) {
+    digitalWrite(FAN_PIN, HIGH);  // force on
+  } else {
+    // Auto (default): only on with a plausible reading above threshold.
+    // Invalid / no sample yet → fan stays off (do not blast on boot).
+    bool on = tempReadingValid(lastTempF) && (lastTempF > fanThresholdF);
+    digitalWrite(FAN_PIN, on ? HIGH : LOW);
+  }
 }
 
 void setup() {
   pinMode(FAN_PIN, OUTPUT);
-  digitalWrite(FAN_PIN, HIGH);
+  digitalWrite(FAN_PIN, LOW);  // start OFF; auto applies after first good temp sample
+  applyFanOutput();
 
   spikes.begin();
   spikes.show();
@@ -202,13 +212,21 @@ void checkLight() {
 }
 
 void checkSensor() {
-  lastTempF = sensors.getTempFByIndex(0) - 3;
+  float tF = sensors.getTempFByIndex(0) - 3.0f;
+  if (tempReadingValid(tF)) {
+    lastTempF = tF;
+  } else {
+    // Keep last good reading; log once in a while would be noisy — Serial only
+    Serial.println("Temp sensor: invalid reading (fan auto stays conservative)");
+  }
   sensors.requestTemperatures();
   applyFanOutput();
-  espnowSendTemp(lastTempF);
-  Udp.beginPacket(IPAddress(192, 168, 4, 10), 1236);
-  Udp.print(lastTempF);
-  Udp.endPacket();
+  if (tempReadingValid(lastTempF)) {
+    espnowSendTemp(lastTempF);
+    Udp.beginPacket(IPAddress(192, 168, 4, 10), 1236);
+    Udp.print(lastTempF);
+    Udp.endPacket();
+  }
 }
 
 void flash_lamp() {
