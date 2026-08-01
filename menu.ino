@@ -25,7 +25,8 @@ if (Serial.available() > 0)
         turn_all_off();
         spikes.setPixelColor(testled, spikes.Color(255, 0, 0));        
         spikes.show();
-        delay(1000); //debugging
+        // Avoid long blocking delay (SW WDT ~3s on ESP8266)
+        for (int i = 0; i < 10; i++) { delay(50); wdt_reset(); yield(); }
         break;
       }
       case 'D':
@@ -37,7 +38,7 @@ if (Serial.available() > 0)
         turn_all_off();
         spikes.setPixelColor(testled, spikes.Color(255, 0, 0));        
         spikes.show();
-        delay(1000); //debugging
+        for (int i = 0; i < 10; i++) { delay(50); wdt_reset(); yield(); }
         break;     
       }
 //      case 'u':

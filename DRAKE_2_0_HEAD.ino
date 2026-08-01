@@ -92,7 +92,12 @@ bool tempOkForFan(float tF) {
 
 /** Full 1-Wire search again — picks up reconnects without rebooting Head. */
 void reprobeTempBus(const char *reason) {
+  // sensors.begin() can block 100ms–1s+ on a bad bus; feed SW WDT (ESP8266 ~3s)
+  wdt_reset();
+  yield();
   sensors.begin();
+  wdt_reset();
+  yield();
   sensors.setWaitForConversion(false);
   sensors.setResolution(12);
   lastTempReprobeMs = millis();
@@ -102,6 +107,7 @@ void reprobeTempBus(const char *reason) {
   Serial.print("): devices=");
   Serial.println(sensors.getDeviceCount());
   sensors.requestTemperatures();
+  wdt_reset();
 }
 
 void applyFanOutput() {
@@ -152,7 +158,8 @@ void setup() {
 }
 
 void loop() {
-  t.update();
+  wdt_reset();  // top of loop — long Timer callbacks still need their own feeds
+  t.update();   // may run checkSensor → reprobeTempBus (feeds WDT inside)
   if (!flashed) sound_detect();
   checkSerial();
   checkUDP();
