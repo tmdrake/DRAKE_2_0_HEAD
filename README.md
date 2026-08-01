@@ -23,10 +23,12 @@ Boot serial prints **STA MAC** and **SoftAP MAC**. Tail must peer the **SoftAP**
 
 | ID | Name |
 |----|------|
-| 0–1 | Sound Phase / Distinct (remote mic) |
-| 2 | VU |
+| 0–1 | Sound Phase / Sound Pulse (ESP-NOW mic excess) |
+| 2 | VU (same excess scale as Tail) |
 | 3–8 | Rainbow, Comet, Breath, Fire, Sparkle, Wave |
 | 9–10 | Solid, Off |
+
+Mic path: Tail streams **excess above noise floor** (`EN_MIC`); Head `micNorm01()` matches Tail VU / Phase / Pulse.
 
 Implementation: `New_Modes.ino` + `sound_activate.ino` — **no `delay()` on active path**.  
 Legacy blocking demos in `Other_modes.ino` are unused.

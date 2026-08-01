@@ -44,7 +44,7 @@ void onEspNowRecv(uint8_t *mac, uint8_t *data, uint8_t len) {
   if (type == EN_MIC && len >= 3) {
     int16_t level = ((int16_t)data[1] << 8) | data[2];
     if (level < 0) level = 0;
-    micLevel = level;
+    micNoteLevel((long)level);
   } else if (type == EN_CMD && len >= 2) {
     char cmd[32];
     uint8_t n = len - 1;

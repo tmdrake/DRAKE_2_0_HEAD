@@ -10,6 +10,7 @@ static int lastHeadMode = -1;
 void resetHeadModeState() {
   headModePrev = 0;
   headStep = 0;
+  resetSoundloopState();  // M0 Sound Phase / M1 Sound Pulse
 }
 
 void setSolidColor(uint8_t r, uint8_t g, uint8_t b) {
@@ -39,23 +40,45 @@ static uint8_t breathFromPhase(uint16_t phase) {
 }
 
 void mode_vu() {
-  if (millis() - headModePrev < 40) return;
+  // Match Tail ~200 Hz stream — draw every loop budget allows (~5 ms)
+  if (millis() - headModePrev < 5) return;
   headModePrev = millis();
 
-  // Peak-normalize remote mic (same idea as Tail soundcheck)
-  static long vuPeak = 80;
-  long lvl = micLevel;
-  if (lvl < 0) lvl = 0;
-  if (lvl > vuPeak) vuPeak = lvl;
-  else if (vuPeak > 40) vuPeak = (vuPeak * 95) / 100;
-  if (vuPeak < 40) vuPeak = 40;
+  // Match Tail M2 ballistics + shared micNorm01()
+  static float bar = 0.0f;
+  static float hold = 0.0f;
+  float n = micNorm01();
+  if (n > bar) bar = n;
+  else bar = bar * 0.70f + n * 0.30f;
+  if (n > hold) hold = n;
+  else {
+    hold -= 0.012f;
+    if (hold < bar) hold = bar;
+  }
+  if (hold < 0.0f) hold = 0.0f;
 
-  int n = map(constrain(lvl, 0, vuPeak), 0, vuPeak, 0, spikes.numPixels());
-  // Eyes 0–3 stay under CDS; spikes fill from pixel 4 upward
+  int body = spikes.numPixels() - 4;
+  if (body < 1) body = 1;
+  int lit = (int)(bar * body + 0.5f);
+  if (lit > body) lit = body;
+  int peakIdx = (int)(hold * (body - 1) + 0.5f);
+  if (peakIdx < 0) peakIdx = 0;
+  if (peakIdx > body - 1) peakIdx = body - 1;
+
+  // Eyes 0–3 stay under CDS; body fills from pixel 4 upward
   for (int i = 0; i < spikes.numPixels(); i++) {
     if (i < 4) continue;
-    spikes.setPixelColor(i, i < n ? spikes.Color(150, 0, 255) : 0);
+    int bi = i - 4;
+    if (bi < lit) {
+      uint8_t t = (lit <= 1) ? 0 : (uint8_t)((bi * 255) / (lit - 1));
+      spikes.setPixelColor(i, spikes.Color(150 + (t / 4), 0, 255 - (t / 3)));
+    } else {
+      spikes.setPixelColor(i, 0);
+    }
   }
+  if (hold >= 0.03f && peakIdx >= lit - 1)
+    spikes.setPixelColor(4 + peakIdx, spikes.Color(255, 200, 255));
+
   applyEyeDim();
   spikes.show();
 }
@@ -170,8 +193,9 @@ void mode_selector(int m) {
     lastHeadMode = m;
   }
   switch (m) {
-    case 0: soundloop(millis(), 50, false, micLevel); break;
-    case 1: soundloop(millis(), 50, true, micLevel); break;
+    // Snappy flood (match Tail default ~V50 → ~24 ms; Head has no V)
+    case 0: soundloop(millis(), 16, false, micLevel); break;  // Sound Phase
+    case 1: soundloop(millis(), 16, true, micLevel); break;   // Sound Pulse
     case 2: mode_vu(); break;
     case 3: mode_rainbow_chase(); break;
     case 4: mode_comet(); break;

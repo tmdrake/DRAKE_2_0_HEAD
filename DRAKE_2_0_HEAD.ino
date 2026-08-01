@@ -46,7 +46,38 @@ WiFiUDP Udp_sound;
 
 bool flashed = false;
 int mode = 0;
-long micLevel = 0;
+long micLevel = 0;  // Tail now streams *excess* above noise floor (0 = quiet)
+#define MIC_SCALE_MIN 60
+long micScalePeak = MIC_SCALE_MIN;
+
+/** Shared intensity 0..1 — quiet should be near empty, not full bar. */
+float micNorm01() {
+  long peak = micScalePeak;
+  if (peak < MIC_SCALE_MIN) peak = MIC_SCALE_MIN;
+  long lvl = micLevel;
+  if (lvl < 0) lvl = 0;
+  float n = (float)lvl / (float)peak;
+  if (n > 1.0f) n = 1.0f;
+  if (n < 0.0f) n = 0.0f;
+  if (n < 0.04f) n = 0.0f;
+  return n;
+}
+
+int micNormPct() {
+  return (int)(micNorm01() * 100.0f + 0.5f);
+}
+
+/** Call when a new remote mic sample arrives (ESP-NOW / UDP). */
+void micNoteLevel(long level) {
+  if (level < 0) level = 0;
+  if (level < 2) level = 0;
+  micLevel = level;
+  if (level > micScalePeak)
+    micScalePeak = level;
+  else if (micScalePeak > MIC_SCALE_MIN)
+    micScalePeak = (micScalePeak * 99) / 100;
+  if (micScalePeak < MIC_SCALE_MIN) micScalePeak = MIC_SCALE_MIN;
+}
 bool soundmode = false;
 bool enableSound = true;
 unsigned long lastime = 0;
@@ -235,16 +266,18 @@ void sound_detect() {
     mode_selector(mode);
     return;
   }
+  // Sound Phase/Pulse only while mic is hot; else idle purple keep-alive
   if (soundmode && enableSound) {
     mode_selector(mode);
-    if (millis() - lastime > 10000) {
+    if (millis() - lastime > 2500) {
       soundmode = false;
       resetBrightnessandDirection();
+      resetSoundloopState();
     }
   } else {
     fading();
   }
-  if (micLevel > 100) {
+  if (enableSound && micLevel > 40) {
     soundmode = true;
     lastime = millis();
   }
@@ -257,11 +290,12 @@ void checkUDP_sound() {
   if (n == 2) {
     int16_t level = ((uint8_t)packetBuffer[0] << 8) | (uint8_t)packetBuffer[1];
     if (level < 0) level = 0;
-    micLevel = level;
+    micNoteLevel((long)level);
   } else if (n > 0) {
     packetBuffer[n] = 0;
-    micLevel = atol(packetBuffer);
-    if (micLevel < 0) micLevel = 0;
+    long level = atol(packetBuffer);
+    if (level < 0) level = 0;
+    micNoteLevel(level);
   }
 }
 

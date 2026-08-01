@@ -1,4 +1,6 @@
-/* Idle purple fade — non-blocking (millis), CDS-aware eyes */
+/* Idle purple pulse — M0/M1 when quiet / sound off.
+ * Matches Tail keep-alive breath (original anti power-save idle). CDS-aware eyes.
+ */
 int brightness;
 bool _direction;
 
