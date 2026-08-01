@@ -41,7 +41,17 @@ static uint8_t breathFromPhase(uint16_t phase) {
 void mode_vu() {
   if (millis() - headModePrev < 40) return;
   headModePrev = millis();
-  int n = map(constrain(micLevel, 0, 1200), 0, 1200, 0, spikes.numPixels());
+
+  // Peak-normalize remote mic (same idea as Tail soundcheck)
+  static long vuPeak = 80;
+  long lvl = micLevel;
+  if (lvl < 0) lvl = 0;
+  if (lvl > vuPeak) vuPeak = lvl;
+  else if (vuPeak > 40) vuPeak = (vuPeak * 95) / 100;
+  if (vuPeak < 40) vuPeak = 40;
+
+  int n = map(constrain(lvl, 0, vuPeak), 0, vuPeak, 0, spikes.numPixels());
+  // Eyes 0–3 stay under CDS; spikes fill from pixel 4 upward
   for (int i = 0; i < spikes.numPixels(); i++) {
     if (i < 4) continue;
     spikes.setPixelColor(i, i < n ? spikes.Color(150, 0, 255) : 0);
